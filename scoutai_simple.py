@@ -112,9 +112,13 @@ def _flatten_columns(df):
             else:
                 new_cols.append(leaf)
         df.columns = new_cols
-    if "Player" in df.columns:
-        df = df[df["Player"] != "Player"]
-        df = df[~df["Player"].isin(["Squad Total", "Opponent Total", "Players Used"])]
+    # Quitamos filas de resumen (Squad Total / Opponent Total) usando la PRIMERA
+    # columna por posición, no por nombre — así funciona igual si la página vino
+    # en inglés ('Player') o traducida por el navegador ('Jugador', 'Joueur', etc.)
+    if len(df.columns) > 0:
+        primera_col = df.columns[0]
+        etiquetas_resumen = {"Player", "Jugador", "Joueur", "Squad Total", "Opponent Total", "Players Used"}
+        df = df[~df[primera_col].astype(str).isin(etiquetas_resumen)]
     return df.reset_index(drop=True)
 
 
@@ -176,6 +180,10 @@ class EstadisticasEquipo:
     duelos_aereos_ganados: float = 0
     duelos_aereos_totales: float = 0
     precision_pases: float = 0
+    # Para ligas sin xG (ej. segundas divisiones) usamos lo que FBref SÍ publica siempre
+    goles_por_tiro: float = 0     # G/Sh — viene calculado directo de FBref
+    pct_tiros_al_arco: float = 0  # SoT% — viene calculado directo de FBref
+    tiene_xg: bool = False
 
 
 def _num(df, col):
@@ -216,19 +224,36 @@ def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=T
     e.tiros = _num(shooting, "Sh")
     e.tiros_al_arco = _num(shooting, "SoT")
     e.xg = _num(shooting, "xG") or _num(standard, "xG")
+    e.tiene_xg = e.xg > 0
     e.pases_clave = _num(passing, "KP")
     e.pases_progresivos = _num(passing, "PrgP")
     e.conducciones_progresivas = _num(possession, "PrgC")
     e.regates_exitosos = _num(possession, "Succ")
+
+    # Defensa: preferimos la tabla 'Defense' avanzada si existe (Big 5 ligas).
+    # Si no existe (ligas sin cobertura avanzada, ej. 2ª división), usamos Misc como respaldo,
+    # que casi siempre trae Int/TklW/Recov aunque no venga el desglose completo por tercio de cancha.
     e.entradas = _num(defense, "Tkl")
-    e.entradas_ganadas = _num(defense, "TklW")
-    e.intercepciones = _num(defense, "Int")
+    e.entradas_ganadas = _num(defense, "TklW") or _num(misc, "TklW")
+    e.intercepciones = _num(defense, "Int") or _num(misc, "Int")
     e.despejes = _num(defense, "Clr")
     e.errores = _num(defense, "Err") or _num(misc, "Err")
     e.duelos_aereos_ganados = _num(misc, "Won")
     e.duelos_aereos_totales = e.duelos_aereos_ganados + _num(misc, "Lost")
     if passing is not None and "Cmp%" in passing.columns:
         e.precision_pases = pd.to_numeric(passing["Cmp%"], errors="coerce").mean()
+
+    # Proxy de calidad de tiro cuando NO hay xG: FBref ya calcula estos por jugador,
+    # los promediamos ponderado simple para tener un número de equipo razonable.
+    if shooting is not None:
+        if "G/Sh" in shooting.columns:
+            e.goles_por_tiro = pd.to_numeric(shooting["G/Sh"], errors="coerce").mean()
+        if "SoT%" in shooting.columns:
+            e.pct_tiros_al_arco = pd.to_numeric(shooting["SoT%"], errors="coerce").mean()
+
+    if not e.tiene_xg:
+        print("ℹ️  Esta liga no publica xG en FBref (normal en 2ª/3ª división). "
+              "El reporte usa G/Sh y SoT% como proxies reales de calidad de tiro.")
 
     print("✅ Datos listos.\n")
     _imprimir_reporte(e)
@@ -247,19 +272,29 @@ def _imprimir_reporte(e: EstadisticasEquipo):
     print(f"REPORTE — {e.nombre}")
     print("=" * 60)
 
-    calidad_tiro = e.xg / e.tiros if e.tiros else 0
-    finalizacion = e.goles - e.xg
     efectividad_entrada = e.entradas_ganadas / e.entradas if e.entradas else 0
     efectividad_aerea = e.duelos_aereos_ganados / e.duelos_aereos_totales if e.duelos_aereos_totales else 0
 
     print("\n⚔️  ATAQUE")
-    print(f"   Goles: {e.goles:.0f}  |  xG: {e.xg:.1f}  |  Calidad de tiro: {calidad_tiro:.2f} xG/disparo")
-    if finalizacion > 2:
-        print("   ✅ Sobrerrendimiento de finalización — cuidado, esto suele normalizarse con el tiempo.")
-    elif finalizacion < -2:
-        print("   ⚠️  Desperdicia ocasiones claras frente al xG generado. Revisar finalización.")
+    if e.tiene_xg:
+        calidad_tiro = e.xg / e.tiros if e.tiros else 0
+        finalizacion = e.goles - e.xg
+        print(f"   Goles: {e.goles:.0f}  |  xG: {e.xg:.1f}  |  Calidad de tiro: {calidad_tiro:.2f} xG/disparo")
+        if finalizacion > 2:
+            print("   ✅ Sobrerrendimiento de finalización — cuidado, esto suele normalizarse con el tiempo.")
+        elif finalizacion < -2:
+            print("   ⚠️  Desperdicia ocasiones claras frente al xG generado. Revisar finalización.")
+        else:
+            print("   ➖ Finalización acorde a lo esperado por xG.")
     else:
-        print("   ➖ Finalización acorde a lo esperado por xG.")
+        # Sin xG disponible (normal en 2ª/3ª división): usamos G/Sh y SoT% reales de FBref
+        print(f"   Goles: {e.goles:.0f}  |  Tiros: {e.tiros:.0f}  |  Goles por tiro: {e.goles_por_tiro:.2f}  |  % tiros al arco: {e.pct_tiros_al_arco:.0f}%")
+        if e.goles_por_tiro > 0.14:
+            print("   ✅ Alta eficiencia de finalización (goles por tiro por encima del promedio típico).")
+        elif e.goles_por_tiro < 0.08:
+            print("   ⚠️  Baja eficiencia de finalización — muchos tiros, pocos goles.")
+        if e.pct_tiros_al_arco < 30:
+            print("   ⚠️  Bajo porcentaje de tiros al arco — revisar calidad de definición o decisión de disparo.")
 
     print("\n🛡️  DEFENSA")
     print(f"   Entradas ganadas: {efectividad_entrada*100:.0f}%  |  Errores: {e.errores:.0f}  |  Duelos aéreos: {efectividad_aerea*100:.0f}%")
@@ -269,12 +304,17 @@ def _imprimir_reporte(e: EstadisticasEquipo):
         print("   ⚠️  Débil en el juego aéreo defensivo. Vigilar en jugadas a balón parado.")
 
     print("\n🎯 A MEJORAR")
-    if calidad_tiro < 0.10:
+    if e.tiene_xg and (e.xg / e.tiros if e.tiros else 0) < 0.10:
         print("   - Buscar mejor posición antes de rematar (baja calidad de tiro).")
+    if not e.tiene_xg and e.goles_por_tiro < 0.08:
+        print("   - Buscar mejor posición antes de rematar (baja eficiencia de gol por tiro).")
     if efectividad_entrada < 0.55:
         print("   - Trabajar anticipación defensiva en vez de solo volumen de entradas.")
     if e.errores > 5:
         print("   - Revisar en qué zona se concentran los errores defensivos.")
+    if not e.tiene_xg:
+        print("   - Nota: esta liga no publica xG en FBref; para un análisis más fino, considerar")
+        print("     una fuente de pago (Wyscout/InStat) solo si el presupuesto lo permite.")
     print()
 
 
@@ -291,7 +331,7 @@ def _graficar_perfil(e: EstadisticasEquipo):
     """Radar de perfil general del equipo."""
     categorias = ["Calidad\nde tiro", "Progresión", "Regate", "Efectividad\nentrada", "Juego\naéreo", "Precisión\npases"]
 
-    calidad_tiro = e.xg / e.tiros if e.tiros else 0
+    calidad_tiro = (e.xg / e.tiros if e.tiros else 0) if e.tiene_xg else e.goles_por_tiro
     efectividad_entrada = e.entradas_ganadas / e.entradas if e.entradas else 0
     efectividad_aerea = e.duelos_aereos_ganados / e.duelos_aereos_totales if e.duelos_aereos_totales else 0
 
