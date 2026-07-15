@@ -180,16 +180,74 @@ class EstadisticasEquipo:
     duelos_aereos_ganados: float = 0
     duelos_aereos_totales: float = 0
     precision_pases: float = 0
-    # Para ligas sin xG (ej. segundas divisiones) usamos lo que FBref SÍ publica siempre
-    goles_por_tiro: float = 0     # G/Sh — viene calculado directo de FBref
-    pct_tiros_al_arco: float = 0  # SoT% — viene calculado directo de FBref
+    # Proxy de calidad de tiro sin xG
+    goles_por_tiro: float = 0
+    pct_tiros_al_arco: float = 0
     tiene_xg: bool = False
+    # Pilar 2 — contexto situacional (local vs visitante), viene de matchlogs_for
+    local_partidos: int = 0
+    local_victorias: int = 0
+    local_gf_promedio: float = 0
+    local_gc_promedio: float = 0
+    visitante_partidos: int = 0
+    visitante_victorias: int = 0
+    visitante_gf_promedio: float = 0
+    visitante_gc_promedio: float = 0
+    # Pilar 3 — balón parado (solo si la liga tiene datos avanzados)
+    tiene_datos_balon_parado: bool = False
+    pct_peligro_balon_parado: float = 0
+    # Pilar 4 — gestión de plantilla
+    concentracion_minutos_top5: float = 0  # % de minutos totales que acumulan los 5 más usados
 
 
 def _num(df, col):
     if df is None or col not in df.columns:
         return 0
     return pd.to_numeric(df[col], errors="coerce").fillna(0).sum()
+
+
+def _analizar_situacional(tablas: dict) -> dict:
+    """
+    Pilar 2: separa el rendimiento en local vs visitante usando matchlogs_for.
+    Esta tabla SIEMPRE está disponible (es el calendario de resultados), incluso
+    en ligas sin datos avanzados — por eso este pilar nunca queda vacío.
+    """
+    matchlogs = _buscar_tabla(tablas, ["matchlogs_for"])
+    resultado = {}
+    if matchlogs is None or "Venue" not in matchlogs.columns:
+        return resultado
+
+    df = matchlogs.copy()
+    df["GF"] = pd.to_numeric(df.get("GF"), errors="coerce")
+    df["GA"] = pd.to_numeric(df.get("GA"), errors="coerce")
+    df = df.dropna(subset=["GF", "GA"])
+
+    for venue, prefijo in [("Home", "local"), ("Away", "visitante")]:
+        sub = df[df["Venue"] == venue]
+        if len(sub) == 0:
+            continue
+        victorias = (sub["GF"] > sub["GA"]).sum() if "Result" not in sub.columns else (sub["Result"] == "W").sum()
+        resultado[f"{prefijo}_partidos"] = len(sub)
+        resultado[f"{prefijo}_victorias"] = int(victorias)
+        resultado[f"{prefijo}_gf_promedio"] = sub["GF"].mean()
+        resultado[f"{prefijo}_gc_promedio"] = sub["GA"].mean()
+    return resultado
+
+
+def _analizar_concentracion_minutos(standard) -> float:
+    """
+    Pilar 4: qué % de los minutos totales de la temporada se concentran
+    en los 5 jugadores más usados. Alto = riesgo de fatiga/lesión en el tramo
+    final, típico problema de plantillas cortas con presupuesto limitado.
+    """
+    if standard is None or "Min" not in standard.columns:
+        return 0
+    minutos = pd.to_numeric(standard["Min"], errors="coerce").fillna(0)
+    total = minutos.sum()
+    if total == 0:
+        return 0
+    top5 = minutos.nlargest(5).sum()
+    return (top5 / total) * 100
 
 
 def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=True, html: str = None):
@@ -255,6 +313,23 @@ def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=T
         print("ℹ️  Esta liga no publica xG en FBref (normal en 2ª/3ª división). "
               "El reporte usa G/Sh y SoT% como proxies reales de calidad de tiro.")
 
+    # Pilar 2 — contexto situacional (local/visitante)
+    situacional = _analizar_situacional(tablas)
+    for k, v in situacional.items():
+        setattr(e, k, v)
+
+    # Pilar 3 — balón parado (solo si la liga tiene datos avanzados de GCA Types)
+    gca_types = _buscar_tabla(tablas, ["gca"])
+    if gca_types is not None and "PassDead" in gca_types.columns:
+        e.tiene_datos_balon_parado = True
+        vivo = _num(gca_types, "PassLive")
+        muerto = _num(gca_types, "PassDead")
+        total = vivo + muerto + _num(gca_types, "TO") + _num(gca_types, "Def")
+        e.pct_peligro_balon_parado = (muerto / total * 100) if total else 0
+
+    # Pilar 4 — gestión de plantilla (concentración de minutos)
+    e.concentracion_minutos_top5 = _analizar_concentracion_minutos(standard)
+
     print("✅ Datos listos.\n")
     _imprimir_reporte(e)
     if mostrar_graficos:
@@ -270,51 +345,69 @@ def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=T
 def _imprimir_reporte(e: EstadisticasEquipo):
     print("=" * 60)
     print(f"REPORTE — {e.nombre}")
+    print("   Estructura: 5 Pilares de Competitividad")
     print("=" * 60)
 
     efectividad_entrada = e.entradas_ganadas / e.entradas if e.entradas else 0
     efectividad_aerea = e.duelos_aereos_ganados / e.duelos_aereos_totales if e.duelos_aereos_totales else 0
 
-    print("\n⚔️  ATAQUE")
+    # ---------- PILAR 1: EFICIENCIA SOBRE VOLUMEN ----------
+    print("\n🎯 PILAR 1 — EFICIENCIA SOBRE VOLUMEN")
     if e.tiene_xg:
         calidad_tiro = e.xg / e.tiros if e.tiros else 0
         finalizacion = e.goles - e.xg
-        print(f"   Goles: {e.goles:.0f}  |  xG: {e.xg:.1f}  |  Calidad de tiro: {calidad_tiro:.2f} xG/disparo")
+        print(f"   Ataque: {e.goles:.0f} goles | xG {e.xg:.1f} | {calidad_tiro:.2f} xG/disparo")
         if finalizacion > 2:
-            print("   ✅ Sobrerrendimiento de finalización — cuidado, esto suele normalizarse con el tiempo.")
+            print("   ✅ Sobrerrendimiento de finalización — vigilar, suele normalizarse.")
         elif finalizacion < -2:
-            print("   ⚠️  Desperdicia ocasiones claras frente al xG generado. Revisar finalización.")
-        else:
-            print("   ➖ Finalización acorde a lo esperado por xG.")
+            print("   ⚠️  Desperdicia ocasiones claras frente al xG generado.")
     else:
-        # Sin xG disponible (normal en 2ª/3ª división): usamos G/Sh y SoT% reales de FBref
-        print(f"   Goles: {e.goles:.0f}  |  Tiros: {e.tiros:.0f}  |  Goles por tiro: {e.goles_por_tiro:.2f}  |  % tiros al arco: {e.pct_tiros_al_arco:.0f}%")
-        if e.goles_por_tiro > 0.14:
-            print("   ✅ Alta eficiencia de finalización (goles por tiro por encima del promedio típico).")
-        elif e.goles_por_tiro < 0.08:
+        print(f"   Ataque: {e.goles:.0f} goles | {e.goles_por_tiro:.2f} goles/tiro | {e.pct_tiros_al_arco:.0f}% tiros al arco")
+        if e.goles_por_tiro < 0.08:
             print("   ⚠️  Baja eficiencia de finalización — muchos tiros, pocos goles.")
-        if e.pct_tiros_al_arco < 30:
-            print("   ⚠️  Bajo porcentaje de tiros al arco — revisar calidad de definición o decisión de disparo.")
-
-    print("\n🛡️  DEFENSA")
-    print(f"   Entradas ganadas: {efectividad_entrada*100:.0f}%  |  Errores: {e.errores:.0f}  |  Duelos aéreos: {efectividad_aerea*100:.0f}%")
+    print(f"   Defensa: {efectividad_entrada*100:.0f}% de entradas ganadas | {e.errores:.0f} errores | {efectividad_aerea*100:.0f}% duelos aéreos")
     if efectividad_entrada < 0.55:
-        print("   ⚠️  Baja efectividad en el duelo — entra mucho pero gana poco. Revisar timing de la entrada.")
-    if efectividad_aerea < 0.45:
-        print("   ⚠️  Débil en el juego aéreo defensivo. Vigilar en jugadas a balón parado.")
+        print("   ⚠️  Entra mucho, gana poco — revisar timing de la entrada, no volumen.")
 
-    print("\n🎯 A MEJORAR")
-    if e.tiene_xg and (e.xg / e.tiros if e.tiros else 0) < 0.10:
-        print("   - Buscar mejor posición antes de rematar (baja calidad de tiro).")
-    if not e.tiene_xg and e.goles_por_tiro < 0.08:
-        print("   - Buscar mejor posición antes de rematar (baja eficiencia de gol por tiro).")
-    if efectividad_entrada < 0.55:
-        print("   - Trabajar anticipación defensiva en vez de solo volumen de entradas.")
-    if e.errores > 5:
-        print("   - Revisar en qué zona se concentran los errores defensivos.")
-    if not e.tiene_xg:
-        print("   - Nota: esta liga no publica xG en FBref; para un análisis más fino, considerar")
-        print("     una fuente de pago (Wyscout/InStat) solo si el presupuesto lo permite.")
+    # ---------- PILAR 2: CONTEXTO SITUACIONAL ----------
+    print("\n🏟️  PILAR 2 — CONTEXTO SITUACIONAL (LOCAL VS VISITANTE)")
+    if e.local_partidos or e.visitante_partidos:
+        if e.local_partidos:
+            print(f"   Local:      {e.local_victorias}/{e.local_partidos} victorias | {e.local_gf_promedio:.1f} GF/partido | {e.local_gc_promedio:.1f} GC/partido")
+        if e.visitante_partidos:
+            print(f"   Visitante:  {e.visitante_victorias}/{e.visitante_partidos} victorias | {e.visitante_gf_promedio:.1f} GF/partido | {e.visitante_gc_promedio:.1f} GC/partido")
+        if e.local_partidos and e.visitante_partidos:
+            diff_gf = e.local_gf_promedio - e.visitante_gf_promedio
+            if abs(diff_gf) > 0.4:
+                lugar = "en casa" if diff_gf > 0 else "de visitante"
+                print(f"   ⚠️  Identidad marcada: rinde notablemente mejor {lugar}. Vale la pena investigar por qué.")
+    else:
+        print("   ℹ️  No se encontró tabla de partidos (matchlogs) en este HTML.")
+
+    # ---------- PILAR 3: BALÓN PARADO ----------
+    print("\n⚽ PILAR 3 — BALÓN PARADO")
+    if e.tiene_datos_balon_parado:
+        print(f"   {e.pct_peligro_balon_parado:.0f}% del peligro ofensivo creado viene de balón parado.")
+        if e.pct_peligro_balon_parado > 30:
+            print("   ✅ Fuerte dependencia de estrategia — el entrenamiento específico ya rinde, sostenerlo.")
+    else:
+        print("   ℹ️  FBref no publica desglose de balón parado para esta liga.")
+        print("      Alternativa de bajo costo: llevar una planilla manual (Excel/Sheets) marcando")
+        print("      cada córner/tiro libre y si terminó en remate — 10 min por partido, dato propio.")
+
+    # ---------- PILAR 4: GESTIÓN DE PLANTILLA ----------
+    print("\n👥 PILAR 4 — GESTIÓN DE PLANTILLA")
+    if e.concentracion_minutos_top5:
+        print(f"   Los 5 jugadores más usados acumulan el {e.concentracion_minutos_top5:.0f}% de los minutos totales.")
+        if e.concentracion_minutos_top5 > 45:
+            print("   ⚠️  Alta concentración — riesgo de fatiga/lesión en el tramo final. Plantilla corta.")
+        else:
+            print("   ✅ Buena distribución de minutos — menor riesgo de desgaste en titulares clave.")
+
+    # ---------- PILAR 5: PREPARACIÓN POR RIVAL ----------
+    print("\n🔍 PILAR 5 — PREPARACIÓN POR RIVAL")
+    print("   Este pilar se trabaja con fbref_match_analyzer.py comparando este equipo")
+    print("   contra un rival específico antes de cada partido (no aplica a nivel de temporada).")
     print()
 
 
