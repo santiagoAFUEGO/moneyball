@@ -197,7 +197,11 @@ class EstadisticasEquipo:
     tiene_datos_balon_parado: bool = False
     pct_peligro_balon_parado: float = 0
     # Pilar 4 — gestión de plantilla
-    concentracion_minutos_top5: float = 0  # % de minutos totales que acumulan los 5 más usados
+    concentracion_minutos_top5: float = 0
+    # Banderas de disponibilidad real de datos (evitan mostrar 0% engañoso)
+    tiene_entradas_totales: bool = False
+    tiene_datos_avanzados: bool = False
+    partidos_equipo: float = 0  # partidos reales jugados por el EQUIPO (no suma de 90s de jugadores)
 
 
 def _num(df, col):
@@ -292,12 +296,14 @@ def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=T
     # Si no existe (ligas sin cobertura avanzada, ej. 2ª división), usamos Misc como respaldo,
     # que casi siempre trae Int/TklW/Recov aunque no venga el desglose completo por tercio de cancha.
     e.entradas = _num(defense, "Tkl")
+    e.tiene_entradas_totales = e.entradas > 0  # 'Tkl' (intentos) no siempre existe, 'TklW' sí
     e.entradas_ganadas = _num(defense, "TklW") or _num(misc, "TklW")
     e.intercepciones = _num(defense, "Int") or _num(misc, "Int")
     e.despejes = _num(defense, "Clr")
     e.errores = _num(defense, "Err") or _num(misc, "Err")
     e.duelos_aereos_ganados = _num(misc, "Won")
     e.duelos_aereos_totales = e.duelos_aereos_ganados + _num(misc, "Lost")
+    e.tiene_datos_avanzados = passing is not None or possession is not None
     if passing is not None and "Cmp%" in passing.columns:
         e.precision_pases = pd.to_numeric(passing["Cmp%"], errors="coerce").mean()
 
@@ -329,6 +335,13 @@ def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=T
 
     # Pilar 4 — gestión de plantilla (concentración de minutos)
     e.concentracion_minutos_top5 = _analizar_concentracion_minutos(standard)
+
+    # Partidos reales del equipo (denominador correcto para tasas por partido, NO suma de 90s de jugadores)
+    matchlogs_tmp = _buscar_tabla(tablas, ["matchlogs_for"])
+    if matchlogs_tmp is not None:
+        e.partidos_equipo = len(matchlogs_tmp)
+    elif standard is not None and "MP" in standard.columns:
+        e.partidos_equipo = pd.to_numeric(standard["MP"], errors="coerce").max()
 
     print("✅ Datos listos.\n")
     _imprimir_reporte(e)
@@ -365,9 +378,17 @@ def _imprimir_reporte(e: EstadisticasEquipo):
         print(f"   Ataque: {e.goles:.0f} goles | {e.goles_por_tiro:.2f} goles/tiro | {e.pct_tiros_al_arco:.0f}% tiros al arco")
         if e.goles_por_tiro < 0.08:
             print("   ⚠️  Baja eficiencia de finalización — muchos tiros, pocos goles.")
-    print(f"   Defensa: {efectividad_entrada*100:.0f}% de entradas ganadas | {e.errores:.0f} errores | {efectividad_aerea*100:.0f}% duelos aéreos")
-    if efectividad_entrada < 0.55:
-        print("   ⚠️  Entra mucho, gana poco — revisar timing de la entrada, no volumen.")
+    print(f"   Defensa: {e.entradas_ganadas:.0f} entradas ganadas | {e.intercepciones:.0f} intercepciones | {e.errores:.0f} errores")
+    if e.tiene_entradas_totales:
+        print(f"      Efectividad de entrada: {efectividad_entrada*100:.0f}%")
+        if efectividad_entrada < 0.55:
+            print("   ⚠️  Entra mucho, gana poco — revisar timing de la entrada, no volumen.")
+    else:
+        print("      (Esta liga no publica el total de entradas intentadas, solo las ganadas — no se puede calcular %)")
+    if e.duelos_aereos_totales > 0:
+        print(f"      Duelos aéreos ganados: {efectividad_aerea*100:.0f}%")
+    else:
+        print("      (Sin datos de duelos aéreos disponibles en esta liga)")
 
     # ---------- PILAR 2: CONTEXTO SITUACIONAL ----------
     print("\n🏟️  PILAR 2 — CONTEXTO SITUACIONAL (LOCAL VS VISITANTE)")
@@ -421,21 +442,38 @@ def _normalizar(valor, minimo, maximo):
 
 
 def _graficar_perfil(e: EstadisticasEquipo):
-    """Radar de perfil general del equipo."""
-    categorias = ["Calidad\nde tiro", "Progresión", "Regate", "Efectividad\nentrada", "Juego\naéreo", "Precisión\npases"]
-
-    calidad_tiro = (e.xg / e.tiros if e.tiros else 0) if e.tiene_xg else e.goles_por_tiro
-    efectividad_entrada = e.entradas_ganadas / e.entradas if e.entradas else 0
-    efectividad_aerea = e.duelos_aereos_ganados / e.duelos_aereos_totales if e.duelos_aereos_totales else 0
-
-    valores = [
-        _normalizar(calidad_tiro, 0, 0.25),
-        _normalizar(e.pases_progresivos + e.conducciones_progresivas, 0, 800),
-        _normalizar(e.regates_exitosos, 0, 150),
-        _normalizar(efectividad_entrada, 0.3, 0.75),
-        _normalizar(efectividad_aerea, 0.3, 0.7),
-        _normalizar(e.precision_pases, 65, 90),
-    ]
+    """
+    Radar de perfil general. Se adapta automáticamente según qué datos
+    existen de verdad para la liga del equipo — nunca fuerza ejes en 0
+    por falta de dato (eso mentiría sobre el rendimiento real).
+    """
+    if e.tiene_datos_avanzados:
+        categorias = ["Calidad\nde tiro", "Progresión", "Regate", "Efectividad\nentrada", "Juego\naéreo", "Precisión\npases"]
+        calidad_tiro = (e.xg / e.tiros if e.tiros else 0) if e.tiene_xg else e.goles_por_tiro
+        efectividad_entrada = e.entradas_ganadas / e.entradas if e.entradas else 0
+        efectividad_aerea = e.duelos_aereos_ganados / e.duelos_aereos_totales if e.duelos_aereos_totales else 0
+        valores = [
+            _normalizar(calidad_tiro, 0, 0.25),
+            _normalizar(e.pases_progresivos + e.conducciones_progresivas, 0, 800),
+            _normalizar(e.regates_exitosos, 0, 150),
+            _normalizar(efectividad_entrada, 0.3, 0.75),
+            _normalizar(efectividad_aerea, 0.3, 0.7),
+            _normalizar(e.precision_pases, 65, 90),
+        ]
+    else:
+        # Versión básica: solo ejes que SÍ existen en ligas sin Passing/Possession
+        # (ej. segundas/terceras divisiones). Usamos tasas por 90' en vez de %
+        # cuando el denominador total no está disponible.
+        partidos = e.partidos_equipo if e.partidos_equipo else 20  # respaldo razonable si no hay dato
+        categorias = ["Eficiencia\nde gol", "Tiros\nal arco", "Entradas\nganadas/90", "Intercep.\n/90", "Disciplina\n(errores)", "Distribución\nde minutos"]
+        valores = [
+            _normalizar(e.goles_por_tiro, 0, 0.20),
+            _normalizar(e.pct_tiros_al_arco, 20, 50),
+            _normalizar(e.entradas_ganadas / partidos, 5, 20),
+            _normalizar(e.intercepciones / partidos, 2, 12),
+            _normalizar(10 - e.errores, 0, 10),  # menos errores = mejor
+            _normalizar(100 - e.concentracion_minutos_top5, 40, 70),  # más repartido = mejor
+        ]
 
     N = len(categorias)
     angulos = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
