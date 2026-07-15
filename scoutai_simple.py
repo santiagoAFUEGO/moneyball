@@ -222,6 +222,7 @@ def _analizar_situacional(tablas: dict) -> dict:
         return resultado
 
     df = matchlogs.copy()
+    df = df[df["Venue"].isin(["Home", "Away"])]  # descarta filas de encabezado repetido u otros valores raros
     df["GF"] = pd.to_numeric(df.get("GF"), errors="coerce")
     df["GA"] = pd.to_numeric(df.get("GA"), errors="coerce")
     df = df.dropna(subset=["GF", "GA"])
@@ -399,9 +400,13 @@ def _imprimir_reporte(e: EstadisticasEquipo):
             print(f"   Visitante:  {e.visitante_victorias}/{e.visitante_partidos} victorias | {e.visitante_gf_promedio:.1f} GF/partido | {e.visitante_gc_promedio:.1f} GC/partido")
         if e.local_partidos and e.visitante_partidos:
             diff_gf = e.local_gf_promedio - e.visitante_gf_promedio
+            diff_gc = e.local_gc_promedio - e.visitante_gc_promedio
             if abs(diff_gf) > 0.4:
                 lugar = "en casa" if diff_gf > 0 else "de visitante"
                 print(f"   ⚠️  Identidad marcada: rinde notablemente mejor {lugar}. Vale la pena investigar por qué.")
+            elif abs(diff_gf) < 0.05 and abs(diff_gc) < 0.05:
+                print("   📌 Rendimiento prácticamente idéntico en casa y fuera — consistencia táctica")
+                print("      poco común. Vale la pena destacarlo como fortaleza de identidad de equipo.")
     else:
         print("   ℹ️  No se encontró tabla de partidos (matchlogs) en este HTML.")
 
