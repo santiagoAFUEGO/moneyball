@@ -305,16 +305,17 @@ def analizar_equipo(url: str = None, nombre_equipo: str = "", mostrar_graficos=T
     e.duelos_aereos_ganados = _num(misc, "Won")
     e.duelos_aereos_totales = e.duelos_aereos_ganados + _num(misc, "Lost")
     e.tiene_datos_avanzados = passing is not None or possession is not None
-    if passing is not None and "Cmp%" in passing.columns:
-        e.precision_pases = pd.to_numeric(passing["Cmp%"], errors="coerce").mean()
+    if passing is not None and "Cmp" in passing.columns and "Att" in passing.columns:
+        pases_completados = _num(passing, "Cmp")
+        pases_intentados = _num(passing, "Att")
+        e.precision_pases = (pases_completados / pases_intentados * 100) if pases_intentados else 0
 
-    # Proxy de calidad de tiro cuando NO hay xG: FBref ya calcula estos por jugador,
-    # los promediamos ponderado simple para tener un número de equipo razonable.
-    if shooting is not None:
-        if "G/Sh" in shooting.columns:
-            e.goles_por_tiro = pd.to_numeric(shooting["G/Sh"], errors="coerce").mean()
-        if "SoT%" in shooting.columns:
-            e.pct_tiros_al_arco = pd.to_numeric(shooting["SoT%"], errors="coerce").mean()
+    # Proxy de calidad de tiro cuando NO hay xG. IMPORTANTE: usamos el TOTAL del
+    # equipo (goles totales / tiros totales), no el promedio de G/Sh por jugador
+    # — promediar tasas individuales sesga el número (un suplente con 1 tiro y
+    # 0 goles pesaría igual que el goleador titular con 80 tiros).
+    e.goles_por_tiro = (e.goles / e.tiros) if e.tiros else 0
+    e.pct_tiros_al_arco = (e.tiros_al_arco / e.tiros * 100) if e.tiros else 0
 
     if not e.tiene_xg:
         print("ℹ️  Esta liga no publica xG en FBref (normal en 2ª/3ª división). "
