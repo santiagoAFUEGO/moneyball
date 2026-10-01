@@ -1,0 +1,128 @@
+match_id,team,origen_bp,shot_statsbomb_xg,es_gol,a_puerta,superioridad
+3930166,Portugal,Falta directa,0.05240551,False,True,2
+3930159,Switzerland,Corner,0.11983715,False,False,-3
+3930159,Switzerland,Corner,0.044237033,False,True,-3
+3930163,England,Falta directa,0.05354343,False,False,1
+3930181,England,Corner,0.027990201,False,False,-3
+3930181,England,Falta directa,0.02118464,False,True,1
+3930181,England,Corner,0.07156796,False,False,-4
+3930178,Italy,Corner,0.16923,False,False,-4
+3930178,Italy,Falta directa,0.06597319,False,False,2
+3930178,Italy,Corner,0.11527714,False,False,-7
+3930160,Spain,Corner,0.108392105,False,False,-6
+3930160,Spain,Falta directa,0.042338703,False,False,1
+3930170,Serbia,Falta directa,0.042383377,False,False,1
+3930170,Serbia,Corner,0.14172395,True,True,-4
+3938643,France,Corner,0.09202025,False,False,-4
+3938641,Poland,Falta directa,0.04249511,False,True,1
+3938641,Poland,Corner,0.04781311,False,False,-4
+3938641,Austria,Corner,0.062189415,False,True,-3
+3938641,Poland,Falta directa,0.04008755,False,False,1
+3938641,Poland,Corner,0.06839087,False,False,-4
+3938642,Czech Republic,Corner,0.16812286,False,False,-5
+3938642,Czech Republic,Corner,0.059734687,False,False,-5
+3938639,Turkey,Corner,0.109281614,False,False,-7
+3938639,Turkey,Corner,0.11773408,False,False,-8
+3938639,Turkey,Falta directa,0.048409604,False,True,1
+3938638,Romania,Falta directa,0.007156054,False,False,1
+3938638,Ukraine,Falta directa,0.038833655,False,False,1
+3938640,Slovakia,Falta directa,0.078277074,False,True,4
+3938640,Ukraine,Falta directa,0.0076609575,False,True,1
+3938640,Ukraine,Corner,0.06388939,False,False,-5
+3938640,Slovakia,Falta directa,0.0087996805,False,False,1
+3938640,Slovakia,Corner,0.041888792,False,False,-4
+3938637,Poland,Corner,0.08721661,True,True,-5
+3938637,Netherlands,Corner,0.033487294,False,True,-3
+3938637,Netherlands,Corner,0.06877075,False,False,-5
+3938637,Poland,Corner,0.2948724,False,False,-5
+3938644,Portugal,Falta directa,0.022706533,False,True,1
+3938644,Portugal,Corner,0.102168575,False,False,-4
+3941019,France,Corner,0.02893819,False,False,-4
+3942227,England,Corner,0.024830516,False,False,-2
+3930162,Slovenia,Corner,0.02002185,False,False,0
+3930162,Denmark,Corner,0.10208895,False,False,-3
+3930162,Denmark,Corner,0.07210865,False,False,-4
+3930162,Denmark,Corner,0.13023244,False,False,-3
+3930162,Denmark,Corner,0.01490126,False,True,-1
+3930176,Germany,Corner,0.08929836,False,True,-5
+3930176,Germany,Corner,0.18030311,False,False,-4
+3930169,Scotland,Corner,0.10378359,False,True,-4
+3942819,Netherlands,Corner,0.0631593,False,False,-4
+3942819,Netherlands,Corner,0.058512155,False,False,-2
+3943043,Spain,Corner,0.097933225,False,False,-5
+3943043,England,Corner,0.057442125,False,True,-1
+3942752,France,Falta directa,0.030292137,False,False,2
+3942752,France,Corner,0.08108944,False,True,-4
+3942752,France,Corner,0.09654521,False,False,-4
+3942382,Turkey,Falta directa,0.042380717,False,False,1
+3942349,Portugal,Falta directa,0.03952836,False,False,1
+3942349,Portugal,Corner,0.04770692,False,False,-2
+3942349,Portugal,Falta directa,0.010742701,False,False,0
+3942349,France,Corner,0.019525701,False,False,-1
+3942349,France,Corner,0.039004326,False,False,-2
+3930180,Austria,Corner,0.02351871,False,True,-1
+3930180,Austria,Corner,0.09956471,False,False,-5
+3930180,Netherlands,Corner,0.14079262,False,False,-6
+3930171,Denmark,Corner,0.011467024,False,False,-2
+3930171,Denmark,Corner,0.2926257,False,False,-5
+3942226,Spain,Falta directa,0.084460065,False,False,1
+3942226,Germany,Corner,0.046607595,False,False,-5
+3938645,Belgium,Falta directa,0.005830124,False,False,0
+3938645,Ukraine,Falta directa,0.0074785133,False,True,1
+3938645,Belgium,Corner,0.03379251,False,False,-2
+3938645,Ukraine,Corner,0.06703938,False,False,-4
+3930184,Turkey,Corner,0.07527008,False,False,-4
+3941022,Austria,Corner,0.12085788,False,False,-4
+3941022,Austria,Falta directa,0.042849332,False,False,0
+3941022,Turkey,Corner,0.10399367,False,False,-4
+3941022,Turkey,Corner,0.1547648,True,True,-7
+3941022,Austria,Corner,0.11622289,False,False,-6
+3941022,Austria,Corner,0.0522076,False,False,-3
+3941021,Netherlands,Corner,0.07967252,False,False,-4
+3941021,Netherlands,Corner,0.033201255,False,False,-3
+3941021,Netherlands,Corner,0.0656883,False,False,-2
+3941021,Netherlands,Corner,0.06589584,False,False,-2
+3941021,Netherlands,Falta directa,0.061553013,False,False,2
+3941020,Portugal,Falta directa,0.08345447,False,False,1
+3941020,Portugal,Falta directa,0.0067048697,False,False,0
+3941020,Slovenia,Corner,0.036003575,False,False,-3
+3941020,Portugal,Falta directa,0.07588849,False,True,3
+3941020,Portugal,Falta directa,0.029365536,False,False,2
+3941020,Portugal,Corner,0.050621446,False,False,-3
+3941020,Slovenia,Falta directa,0.045270752,False,False,2
+3941018,Spain,Corner,0.047663942,False,True,-2
+3941018,Spain,Corner,0.05098217,False,False,-3
+3941018,Spain,Falta directa,0.08360341,False,True,3
+3941017,England,Falta directa,0.054180622,False,False,1
+3941017,Slovakia,Falta directa,0.02863606,False,False,1
+3930182,Denmark,Corner,0.045023,False,True,-2
+3930179,Spain,Corner,0.046571102,False,False,-3
+3930179,Spain,Corner,0.09585059,False,False,-5
+3940983,Germany,Corner,0.029666193,False,True,-2
+3940983,Germany,Corner,0.054684527,False,True,-4
+3940983,Germany,Falta directa,0.056089107,False,False,2
+3940983,Denmark,Falta directa,0.08993592,False,False,1
+3940983,Denmark,Corner,0.0607214,False,False,-6
+3940878,Switzerland,Falta directa,0.008087687,False,False,0
+3930177,Hungary,Falta directa,0.025828812,False,False,0
+3930173,France,Falta directa,0.043873254,False,False,3
+3930173,Netherlands,Falta directa,0.053838786,False,False,0
+3930173,Netherlands,Corner,0.024942296,False,False,-3
+3930172,Spain,Corner,0.07005949,False,False,-3
+3930172,Italy,Falta directa,0.041307483,False,False,1
+3930172,Italy,Corner,0.04522397,False,True,-5
+3930167,Croatia,Corner,0.27776286,False,False,-5
+3930168,Germany,Corner,0.058733784,False,False,-1
+3930168,Hungary,Falta directa,0.011125852,False,True,0
+3930168,Germany,Falta directa,0.02867941,False,False,1
+3930165,France,Corner,0.06899431,False,False,-5
+3930165,Austria,Corner,0.037411693,False,False,-3
+3930164,Belgium,Corner,0.11087667,False,True,-4
+3930164,Belgium,Corner,0.034820676,False,False,-4
+3930161,Italy,Corner,0.1803363,False,False,-5
+3930161,Italy,Corner,0.10085189,False,False,-4
+3930161,Albania,Falta directa,0.008601317,False,False,0
+3930183,Slovakia,Corner,0.04360604,False,True,-3
+3930183,Slovakia,Corner,0.061454203,False,False,-3
+3930183,Romania,Falta directa,0.007878168,False,False,1
+3930158,Germany,Corner,0.030512892,False,False,-2
